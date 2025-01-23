@@ -1,0 +1,917 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="COMP 318 Messaging System." />
+    <title>COMP 318 M3ssag1n8</title>
+    <link rel="stylesheet" href="../styles/styles.css" />
+    <script src="https://code.iconify.design/iconify-icon/1.0.6/iconify-icon.min.js"></script>
+    <script defer type="module" src="../src/main.ts"></script>
+  </head>
+
+  <!-- 
+      Notification bar:
+      Shown when the client fails to connect to the server.
+      Contains a retry and cancel button.
+    -->
+  <body>
+    <article class="notification-bar" hidden>
+      <label class="notification-text">Server not connected.</label>
+      <button id="error-retry" aria-label="Retry connection">Retry</button>
+      <button id="error-cancel" aria-label="Cancel operation">Cancel</button>
+    </article>
+
+    <!-- 
+      Header Section:
+      Contains the site title, a "Surprise Me!" button, and user controls (username, logout, workspace menu).
+    -->
+    <header class="header">
+      <section class="header-content">
+        <article class="logo">M3ssag1n8</article>
+        <button id="surprise-button" class="big-button" aria-label="Surprise">
+          Surprise Me!
+        </button>
+        <section class="user-info">
+          <article class="username" title="username">username</article>
+          <button
+            id="logout-btn"
+            class="big-button"
+            aria-label="Logout from the application"
+          >
+            Logout
+          </button>
+          <button
+            id="workspace-prompt"
+            class="big-button"
+            aria-label="Open workspace menu"
+          >
+            Workspaces
+          </button>
+        </section>
+      </section>
+    </header>
+
+    <!-- 
+      Surprise Modal:
+      Displays a warning about flashy elements and allows the user to continue or cancel.
+      If continued, some "disco" effect may be shown. The abort button stops the effect.
+    -->
+    <article id="surprise-modal-container">
+      <section id="surprise-modal-overlay"></section>
+      <section id="surprise-disco"></section>
+      <section id="surprise-modal-content">
+        <h2>Warning</h2>
+        <p>This will show flashy elements on the screen. Continue?</p>
+        <button id="surprise-continue" class="big-button" aria-label="Continue">
+          Continue
+        </button>
+        <button id="surprise-cancel" class="big-button" aria-label="Cancel">
+          Cancel
+        </button>
+      </section>
+      <button id="surprise-abort" aria-label="Abort surprise">Stop</button>
+    </article>
+
+    <!-- 
+      Workspace Modal:
+      Allows the user to view, refresh, create, and manage workspaces.
+      Displays a close button, a refresh button, a list of workspaces, and a creation button.
+    -->
+    <article id="workspace-modal-container">
+      <header class="modal-header">
+        <h2>Workspaces</h2>
+        <button
+          id="workspace-modal-close"
+          class="closeButton"
+          aria-label="Close workspace modal"
+        >
+          &times;
+        </button>
+      </header>
+      <!-- Workspaces will be listed here -->
+
+      <section id="workspace-modal" class="modal">
+        <button
+          id="refresh-account-button"
+          class="big-button"
+          aria-label="Refresh all workspaces"
+        >
+          Refresh all workspaces
+        </button>
+        <ul id="workspace-list" role="list">
+          <!-- Workspaces will be rendered here -->
+        </ul>
+      </section>
+      <!-- Handle creation -->
+      <footer class="modal-footer">
+        <!-- <button id="workspace-cancel" aria-label="Cancel workspace creation">Cancel</button> -->
+        <button id="workspace-create" aria-label="Create new workspace">
+          Create Workspace
+        </button>
+      </footer>
+    </article>
+
+    <!-- 
+      Alert Container:
+      Used to display transient alert messages (success, error, info).
+      Aria attributes ensure accessibility for live updates.
+    -->
+    <article aria-live="polite" aria-atomic="true" id="alert-container">
+      <!-- Position it -->
+      <!-- this is where the box will be -->
+    </article>
+
+    <!-- Main Container with Sidebar and Content Area -->
+    <nav class="main-container">
+      <!-- Sidebar for Scrolling Through Channels Etc. -->
+      <aside class="sidebar">
+        <!-- Sidebar components can be added here in the future -->
+        <h1 class="medium sidebar-title" id="channels-title">
+          COMP 318 M3ssag1n8
+        </h1>
+        <button
+          id="refresh-channel-button"
+          class="big-button"
+          aria-label="Refresh channel list"
+        >
+          Refresh
+        </button>
+        <ul id="channels-list" role="list">
+          <!-- Channels will be rendered here -->
+        </ul>
+        <button
+          id="create-channel-button"
+          class="big-button"
+          aria-label="Create a new channel"
+        ></button>
+      </aside>
+
+      <!-- Main Content Area For Posts Display Etc-->
+      <main id="content-area">
+        <!-- Content to be displayed in the main area can be added here -->
+      </main>
+    </nav>
+  </body>
+
+  <!-- 
+    Template for login-dialog (Web Component):
+    Provides a modal overlay with a login form (username input and login button).
+    Displays an error message if login fails.
+  -->
+  <template id="login-dialog-template">
+    <style>
+      /* Styles for the modal */
+      .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .modal-content {
+        background: white;
+        padding: 2em;
+        border-radius: 5px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        width: 90%;
+        max-width: 400px;
+        text-align: center;
+      }
+      .modal-content h2 {
+        margin-top: 0;
+      }
+      .modal-content input {
+        display: block;
+        margin: 1em 0;
+        padding: 0.5em;
+        width: 100%;
+        box-sizing: border-box;
+      }
+      .modal-content button {
+        padding: 0.5em 1em;
+        margin-top: 1em;
+      }
+      .error {
+        color: red;
+      }
+    </style>
+    <section class="modal-overlay">
+      <main class="modal-content">
+        <h2>Login</h2>
+        <input type="text" placeholder="Enter username" id="username" />
+        <button id="login-btn" aria-label="Login">Login</button>
+        <p class="error" id="error-message"></p>
+      </main>
+    </section>
+  </template>
+
+  <!-- 
+    Template for channel-content element:
+    Provides structure for displaying:
+    - Channel name
+    - A list of posts
+    - A text area and toolbar for creating new posts (with formatting and emojis).
+  -->
+  <template id="channel-content-template">
+    <style>
+      #channel-name {
+        font-size: 25px;
+        margin-top: 32px;
+        margin-left: 3%;
+      }
+
+      #channel-posts {
+        width: 90%;
+        padding-left: 6%;
+        margin-bottom: 20%;
+      }
+
+      .input-container {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+      }
+
+      #create-post-form {
+        width: 70%;
+        height: 7%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 20px;
+        right: 5%;
+        bottom: max(70px, 15vh);
+        z-index: 10;
+        position: fixed;
+      }
+
+      #toolbar {
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 10px;
+        justify-content: center;
+      }
+
+      #toolbar button {
+        width: 10%;
+        height: 40%;
+        background-color: #f0f0f0;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        padding: 8px 12px;
+        font-size: 14px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+
+      #toolbar button:hover {
+        background-color: #e0e0e0;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      }
+
+      #toolbar button:active {
+        background-color: #d0d0d0;
+        box-shadow: inset 0 2px 4px #00000033;
+      }
+
+      #input-box {
+        flex: 1;
+        font-size: 16px;
+        font-family: "Times New Roman", Times, serif;
+        height: 100%;
+        border-radius: 2px;
+        border-color: rgba(0, 0, 0, 0.2);
+        box-shadow: 3px -3px 400px rgba(0, 0, 0, 0.7);
+        padding: 1%;
+        margin-left: 25px;
+        resize: none;
+      }
+
+      @media only screen and (max-width: 640px) and (max-height: 480px) {
+        #input-box {
+          flex: none !important;
+          width: 80% !important;
+          margin-left: 50px !important;
+        }
+      }
+
+      #submit-button {
+        width: 72px;
+        height: 35px;
+        font-size: 15px;
+        font-family: "Times New Roman", Times, serif;
+        text-align: center;
+        border-radius: 2px;
+        margin-right: 25px;
+        transition: 0.3s;
+      }
+
+      #submit-button:hover {
+        cursor: pointer;
+        background-color: rgb(225, 225, 225);
+      }
+    </style>
+
+    <header>
+      <p id="channel-name"></p>
+    </header>
+
+    <!-- 
+      Footer form for creating a new post in the current channel.
+      Includes text input, submit button, and a toolbar for text formatting and emojis.
+    -->
+    <footer id="create-post-form">
+      <section class="input-container">
+        <textarea id="input-box"></textarea>
+        <button id="submit-button" aria-label="Submit">Post</button>
+      </section>
+      <section id="toolbar">
+        <button id="bold-button" type="button" aria-label="Bold">
+          <strong class="toolbar-button-icon">B</strong>
+        </button>
+        <button id="italic-button" type="button" aria-label="Italic">
+          <em class="toolbar-button-icon">I</em>
+        </button>
+        <button id="link-button" type="button" aria-label="Add link">
+          <p class="toolbar-button-icon">🔗</p>
+        </button>
+
+        <button id="smile-button" type="button" aria-label="Smile emoji">
+          <iconify-icon
+            icon="fa-regular:smile"
+            class="toolbar-button-icon"
+          ></iconify-icon>
+        </button>
+        <button id="frown-button" type="button" aria-label="Frown emoji">
+          <iconify-icon
+            icon="fa-regular:frown"
+            class="toolbar-button-icon"
+          ></iconify-icon>
+        </button>
+        <button id="like-button" type="button" aria-label="Like emoji">
+          <iconify-icon
+            icon="mdi:like"
+            class="toolbar-button-icon"
+          ></iconify-icon>
+        </button>
+        <button
+          id="celebrate-button"
+          type="button"
+          aria-label="Celebrate emoji"
+        >
+          <iconify-icon
+            icon="mingcute:celebrate-fill"
+            class="toolbar-button-icon"
+          ></iconify-icon>
+        </button>
+      </section>
+    </footer>
+    <!-- 
+      List of posts for the current channel.
+      Post elements (including replies) will be rendered here.
+    -->
+    <ul id="channel-posts"></ul>
+  </template>
+
+  <!-- 
+    Template for post-element:
+    Represents an individual post with:
+    - Header (e.g. author, timestamp)
+    - Body text
+    - Reaction buttons (smile, frown, like, celebrate)
+    - Reply button
+    - A nested list of replies.
+  -->
+  <template id="post-template">
+    <style>
+      #post-wrapper {
+        width: 40vw;
+        background-color: #b2e3e3;
+        padding: 15px;
+        padding-top: 0px;
+        padding-right: 5%;
+        padding-bottom: 5px;
+        padding-left: 0px;
+        margin-bottom: 0px;
+      }
+
+      #post-header {
+        margin-top: 0px;
+      }
+
+      #post-body {
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+      }
+
+      #post-buttons {
+        height: auto;
+        display: flex;
+        flex-direction: row;
+      }
+
+      #reply-toolbar {
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 10px;
+        justify-content: left;
+      }
+
+      #reply-toolbar button {
+        background-color: #f0f0f0;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        padding: 8px 12px;
+        font-size: 14px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
+
+      #reply-toolbar button:hover {
+        background-color: #e0e0e0;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      }
+
+      #reply-toolbar button:active {
+        background-color: #d0d0d0;
+        box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+      }
+
+      .reaction-wrapper {
+        display: flex;
+        flex-direction: row;
+        margin-right: 50px;
+      }
+
+      .icon-button {
+        height: 25px;
+        align-items: center;
+        margin-right: 3px;
+        z-index: 1;
+      }
+
+      .icon-button:hover {
+        cursor: pointer;
+      }
+
+      #post-replies {
+        padding-bottom: 0px;
+        padding-left: 0px;
+        margin-bottom: 0px;
+        margin-left: 5vw;
+      }
+
+      .clicked {
+        background-color: red;
+      }
+
+      #reply-post-form {
+        flex-direction: column; /* Stacks children vertically */
+        display: flex;
+        align-items: center;
+        gap: 20px;
+      }
+
+      .reply-input-container {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+      }
+
+      #reply-input-box {
+        flex: 1;
+        font-size: 16px;
+        font-family: "Times New Roman", Times, serif;
+        height: 100%;
+        border-radius: 2px;
+        border-color: rgba(0, 0, 0, 0.2);
+        box-shadow: 3px -3px 400px rgba(0, 0, 0, 0.7);
+        padding: 1%;
+        resize: none;
+      }
+
+      #reply-submit-button {
+        width: 72px;
+        height: 35px;
+        font-size: 15px;
+        font-family: "Times New Roman", Times, serif;
+        text-align: center;
+        border-radius: 2px;
+      }
+
+      #reply-submit-button:hover,
+      #reply-quit-button:hover {
+        cursor: pointer;
+        background-color: rgb(225, 225, 225);
+      }
+
+      [hidden] {
+        display: none;
+      }
+    </style>
+    <section id="post-wrapper">
+      <header>
+        <p id="post-header"></p>
+      </header>
+      <main>
+        <p id="post-body"></p>
+      </main>
+      <footer id="post-buttons">
+        <section class="reaction-wrapper">
+          <button class="icon-button" id="smile" aria-label="Smile">
+            <iconify-icon
+              class="icon"
+              icon="fa-regular:smile"
+              width="1.25em"
+              height="1.25em"
+            ></iconify-icon>
+          </button>
+          <p id="smile-count"></p>
+        </section>
+        <section class="reaction-wrapper">
+          <button class="icon-button" id="frown" aria-label="Frown">
+            <iconify-icon
+              class="icon"
+              icon="fa-regular:frown"
+              width="1.25em"
+              height="1.25em"
+            ></iconify-icon>
+          </button>
+          <p id="frown-count"></p>
+        </section>
+        <section class="reaction-wrapper">
+          <button class="icon-button" id="like" aria-label="Like">
+            <iconify-icon
+              class="icon"
+              icon="mdi:like"
+              width="1.25em"
+              height="1.25em"
+            ></iconify-icon>
+          </button>
+          <p id="like-count"></p>
+        </section>
+        <section class="reaction-wrapper">
+          <button class="icon-button" id="celebrate" aria-label="Celebrate">
+            <iconify-icon
+              class="icon"
+              icon="mingcute:celebrate-fill"
+              width="1.25em"
+              height="1.25em"
+            ></iconify-icon>
+          </button>
+          <p id="celebrate-count"></p>
+        </section>
+        <button class="icon-button" id="reply" aria-label="Reply">
+          <iconify-icon
+            icon="ic:outline-reply"
+            width="1.25em"
+            height="1.25em"
+          ></iconify-icon>
+        </button>
+      </footer>
+      <ul id="post-replies"></ul>
+    </section>
+    <section></section>
+    <!-- // styled s.t. it's indented relative to current PostElement, populate w/ children PostElements -->
+  </template>
+
+  <!-- 
+    Template for reply-box:
+    A form displayed when a user wants to reply to a post.
+    Includes textarea, submit, and quit buttons, as well as formatting tools.
+  -->
+  <template id="reply-box-template">
+    <style>
+      #reply-post-form {
+        flex-direction: column; /* Stacks children vertically */
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        margin-bottom: 15px;
+      }
+
+      .reply-input-container {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+      }
+
+      #reply-input-box {
+        flex: 1;
+        font-size: 16px;
+        font-family: "Times New Roman", Times, serif;
+        height: 100%;
+        border-radius: 2px;
+        border-color: rgba(0, 0, 0, 0.2);
+        box-shadow: 3px -3px 400px rgba(0, 0, 0, 0.7);
+        padding: 1%;
+        resize: none;
+      }
+
+      #reply-submit-button {
+        width: 72px;
+        height: 35px;
+        font-size: 15px;
+        font-family: "Times New Roman", Times, serif;
+        text-align: center;
+        border-radius: 2px;
+      }
+
+      #reply-submit-button:hover,
+      #reply-quit-button:hover {
+        cursor: pointer;
+        background-color: rgb(225, 225, 225);
+      }
+    </style>
+    <section id="reply-post-form">
+      <section class="reply-input-container">
+        <textarea id="reply-input-box"></textarea>
+        <button id="reply-submit-button" aria-label="Reply submit button">
+          Reply
+        </button>
+        <button id="reply-quit-button" aria-label="Quit reply">X</button>
+      </section>
+      <section id="reply-toolbar">
+        <button id="reply-bold-button" type="button" aria-label="Bold">
+          <strong>B</strong>
+        </button>
+        <button id="reply-italic-button" type="button" aria-label="Italic">
+          <em>I</em>
+        </button>
+        <button id="reply-link-button" type="button" aria-label="Add link">
+          🔗
+        </button>
+        <button id="reply-smile-button" type="button" aria-label="Smile emoji">
+          <iconify-icon icon="fa-regular:smile"></iconify-icon>
+        </button>
+        <button id="reply-frown-button" type="button" aria-label="Frown emoji">
+          <iconify-icon icon="fa-regular:frown"></iconify-icon>
+        </button>
+        <button id="reply-like-button" type="button" aria-label="Like emoji">
+          <iconify-icon icon="mdi:like"></iconify-icon>
+        </button>
+        <button
+          id="reply-celebrate-button"
+          type="button"
+          aria-label="Celebrate emoji"
+        >
+          <iconify-icon icon="mingcute:celebrate-fill"></iconify-icon>
+        </button>
+      </section>
+    </section>
+  </template>
+
+  <!-- 
+    Template for workspace list items:
+    Used within the workspace modal to display each workspace entry.
+    Provides buttons for deleting, confirming changes, and potentially editing.
+    Also provides error messaging and input fields for renaming, etc.
+  -->
+  <template id="list-item-template">
+    <style>
+      .show {
+        opacity: 1;
+        transform: scale(1) rotate(0);
+      }
+      input {
+        /* display:block; */
+        width: 60%;
+        &.show {
+          display: block;
+        }
+      }
+
+      label {
+        /* display: block; */
+        width: 60%;
+        &.show {
+          display: flex;
+        }
+      }
+      .workspace-list-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px;
+        border-radius: 5px;
+      }
+
+      .workspace-name,
+      #workspace-list-input {
+        flex-grow: 1; /* Makes the name take up the remaining space */
+        word-wrap: break-word;
+        /* width: 100%; */
+        overflow-wrap: break-word;
+        /* width: 20vw; */
+      }
+
+      #workspace-list-input {
+        height: 5vh;
+      }
+
+      .workspace-name {
+        text-align: center;
+        align-self: center;
+        align-items: center;
+        justify-content: space-evenly;
+      }
+
+      .button-container {
+        display: flex;
+        gap: 5px; /* Space between buttons */
+        justify-content: flex-end;
+        width: 40%; /* Takes up roughly 15% of the list item width */
+      }
+
+      .workspace-delete,
+      .workspace-select,
+      .workspace-refresh,
+      .workspace-confirm {
+        flex: 1;
+        /* display: flex; */
+        align-items: center;
+        justify-content: center;
+        padding: 5px;
+        border: none;
+        cursor: pointer;
+        border-radius: 5px;
+        pointer-events: inherit;
+      }
+
+      .workspace-confirm {
+        background-color: green;
+      }
+
+      .workspace-delete {
+        background-color: red;
+      }
+      .workspace-refresh {
+        background-color: lightblue;
+      }
+
+      .workspace-select {
+        background-color: yellow;
+      }
+
+      .error {
+        border: red 2px solid;
+      }
+
+      .error:focus-visible {
+        border: red 3px solid;
+      }
+
+      @media (orientation: landscape) {
+        :root {
+          --text-scale-unit: 1vh;
+        }
+      }
+      @media (orientation: portrait) {
+        :root {
+          --text-scale-unit: 1vw;
+        }
+      }
+
+      .large {
+        font-size: calc(var(--text-scale-unit) * 20);
+      }
+      .middle {
+        font-size: calc(var(--text-scale-unit) * 10);
+      }
+      .small {
+        font-size: calc(var(--text-scale-unit) * 5);
+      }
+      .extra-small {
+        font-size: calc(var(--text-scale-unit) * 3);
+      }
+      .extra-extra-small {
+        font-size: calc(var(--text-scale-unit) * 2);
+      }
+      #label-container {
+        /* justify-content: left;
+        align-items: center; */
+        width: 45%;
+        word-wrap: break-word;
+      }
+      #input-container {
+        /* display: grid; */
+        /* justify-content: left;
+        align-items: center; */
+        &.show {
+          /* max-width: 100%; */
+          display: flex;
+          flex-direction: row-reverse;
+          /* margin-left: -10%; */
+        }
+      }
+      #error-icon {
+        color: red;
+        justify-self: end;
+        align-self: center;
+        margin-left: -27.5px;
+        display: grid;
+        opacity: 0;
+        &.show {
+          opacity: 1;
+        }
+      }
+      #error-display {
+        color: red;
+        /* font-size: 1.5vh; */
+        align-self: self-end;
+      }
+
+      #dismiss-error {
+        display: none;
+        &.show {
+          display: grid;
+          background-color: transparent;
+          border: none;
+          color: red;
+        }
+      }
+
+      #error-container {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        width: 100%;
+        border-left: red solid 1px;
+      }
+    </style>
+    <section id="label-container">
+      <label class="workspace-name extra-small"></label>
+      <section id="input-container" hidden>
+        <iconify-icon
+          id="error-icon"
+          icon="material-symbols:info"
+          width="1.25em"
+          height="1.25em"
+        >
+        </iconify-icon>
+        <input id="workspace-list-input" />
+      </section>
+      <section id="error-container">
+        <button id="dismiss-error" aria-label="Dismiss error">
+          <iconify-icon
+            icon="mdi:close"
+            width="1.25em"
+            height="1.25em"
+          ></iconify-icon>
+        </button>
+        <label id="error-display" class="extra-extra-small"></label>
+      </section>
+    </section>
+    <section class="button-container">
+      <button
+        data-button="delete"
+        class="workspace-delete"
+        aria-label="Delete workspace"
+      >
+        <iconify-icon
+          icon="material-symbols:delete-forever-sharp"
+          width="1.25em"
+          height="1.25em"
+        ></iconify-icon>
+      </button>
+      <button
+        data-button="confirm"
+        class="workspace-confirm"
+        hidden
+        aria-label="Confirm workspace changes"
+      >
+        <iconify-icon
+          icon="material-symbols:check-box"
+          width="1.25em"
+          height="1.25em"
+          hidden
+        ></iconify-icon>
+      </button>
+      <button data-button="edit" hidden aria-label="Edit workspace">
+        <iconify-icon
+          icon="ph:pencil-bold"
+          width="1.25em"
+          height="1.25em"
+        ></iconify-icon>
+      </button>
+      <button data-button="refresh" hidden aria-label="Refresh workspace list">
+        <!-- <iconify-icon
+          icon="material-symbols:refresh"
+          width="1.25em"
+          height="1.25em"
+        ></iconify-icon> -->
+      </button>
+    </section>
+  </template>
+</html>
