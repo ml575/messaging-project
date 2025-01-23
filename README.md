@@ -1,6 +1,7 @@
 # M3ssag1n8 Project
 
 Messaging web client application for COMP 318.
+In collaboration with Chase Geyer and Keshav Shah.
 
 ## Getting stated
 
